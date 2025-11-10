@@ -27,20 +27,38 @@ export const DreamInterpretation = () => {
     setInterpretation("");
 
     try {
-      // Placeholder for AI integration
-      // This will be implemented after enabling Lovable Cloud
-      setTimeout(() => {
-        setInterpretation(
-          "هذا نص تجريبي. سيتم ربط التطبيق بالذكاء الاصطناعي لتفسير الأحلام بشكل دقيق وموثوق بعد تفعيل Lovable Cloud."
-        );
-        setIsLoading(false);
-      }, 2000);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/interpret-dream`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ dream: dream.trim() }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'فشل في الحصول على التفسير');
+      }
+
+      const data = await response.json();
+      setInterpretation(data.interpretation);
+      
+      toast({
+        title: "تم التفسير بنجاح",
+        description: "تم الحصول على تفسير حلمك",
+      });
     } catch (error) {
+      console.error('Error interpreting dream:', error);
       toast({
         title: "حدث خطأ",
-        description: "فشل في الحصول على التفسير. الرجاء المحاولة مرة أخرى.",
+        description: error instanceof Error ? error.message : "فشل في الحصول على التفسير. الرجاء المحاولة مرة أخرى.",
         variant: "destructive",
       });
+    } finally {
       setIsLoading(false);
     }
   };
