@@ -1,15 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Moon, Sparkles, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { admobService } from "@/services/admob";
 
 export const DreamInterpretation = () => {
   const [dream, setDream] = useState("");
   const [interpretation, setInterpretation] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [interpretationCount, setInterpretationCount] = useState(0);
   const { toast } = useToast();
+
+  // Initialize AdMob on component mount
+  useEffect(() => {
+    admobService.initialize();
+    admobService.showBanner();
+    
+    return () => {
+      admobService.hideBanner();
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +58,15 @@ export const DreamInterpretation = () => {
 
       const data = await response.json();
       setInterpretation(data.interpretation);
+      
+      // Show interstitial ad every 3 interpretations
+      setInterpretationCount(prev => {
+        const newCount = prev + 1;
+        if (newCount % 3 === 0) {
+          admobService.showInterstitial();
+        }
+        return newCount;
+      });
       
       toast({
         title: "تم التفسير بنجاح",
