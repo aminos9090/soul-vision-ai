@@ -57,6 +57,15 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        gradient: {
+          start: "hsl(var(--gradient-start))",
+          mid: "hsl(var(--gradient-mid))",
+          end: "hsl(var(--gradient-end))",
+        },
+        glow: {
+          gold: "hsl(var(--glow-gold))",
+          emerald: "hsl(var(--glow-emerald))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
