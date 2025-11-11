@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Moon, Sparkles, Send } from "lucide-react";
+import { Loader2, Moon, Sparkles, Send, Mic, MicOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { admobService } from "@/services/admob";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,20 +12,119 @@ export const DreamInterpretation = () => {
   const [interpretation, setInterpretation] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [interpretationCount, setInterpretationCount] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
   const { toast } = useToast();
+  const recognitionRef = useRef<any>(null);
 
-  // Initialize AdMob on component mount
+  // Initialize AdMob and Speech Recognition on component mount
   useEffect(() => {
     admobService.initialize();
     admobService.showBanner();
     
+    // Initialize Speech Recognition
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'ar-SA'; // Arabic language
+      
+      recognitionRef.current.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setDream(prev => prev + finalTranscript);
+        }
+      };
+      
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+        
+        let errorMessage = 'حدث خطأ في التسجيل الصوتي';
+        if (event.error === 'not-allowed') {
+          errorMessage = 'يرجى السماح بالوصول إلى الميكروفون';
+        } else if (event.error === 'no-speech') {
+          errorMessage = 'لم يتم اكتشاف أي كلام. حاول مرة أخرى';
+        }
+        
+        toast({
+          title: "خطأ",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      };
+      
+      recognitionRef.current.onend = () => {
+        if (isRecording) {
+          recognitionRef.current?.start();
+        }
+      };
+    }
+    
     return () => {
       admobService.hideBanner();
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
     };
-  }, []);
+  }, [isRecording]);
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      toast({
+        title: "غير مدعوم",
+        description: "التسجيل الصوتي غير مدعوم في هذا المتصفح",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+      toast({
+        title: "تم إيقاف التسجيل",
+        description: "يمكنك الآن تعديل النص أو إرساله",
+      });
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+        toast({
+          title: "بدأ التسجيل",
+          description: "تحدث الآن لتسجيل حلمك",
+        });
+      } catch (error) {
+        console.error('Error starting recognition:', error);
+        toast({
+          title: "خطأ",
+          description: "فشل في بدء التسجيل",
+          variant: "destructive",
+        });
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Stop recording if active
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+    }
     
     if (!dream.trim()) {
       toast({
@@ -106,19 +205,47 @@ export const DreamInterpretation = () => {
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-3">
-              <label htmlFor="dream" className="flex items-center gap-2 text-lg font-bold text-foreground">
-                <Moon className="w-5 h-5 text-secondary" />
-                اكتب حلمك هنا
+              <label htmlFor="dream" className="flex items-center justify-between text-lg font-bold text-foreground">
+                <span className="flex items-center gap-2">
+                  <Moon className="w-5 h-5 text-secondary" />
+                  اكتب حلمك هنا
+                </span>
+                <Button
+                  type="button"
+                  variant={isRecording ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={toggleRecording}
+                  disabled={isLoading}
+                  className={`gap-2 ${isRecording ? 'animate-pulse' : ''}`}
+                >
+                  {isRecording ? (
+                    <>
+                      <MicOff className="w-4 h-4" />
+                      إيقاف التسجيل
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-4 h-4" />
+                      تسجيل صوتي
+                    </>
+                  )}
+                </Button>
               </label>
               <Textarea
                 id="dream"
                 value={dream}
                 onChange={(e) => setDream(e.target.value)}
-                placeholder="صف حلمك بالتفصيل... كلما كان الوصف أدق، كان التفسير أوضح"
-                className="min-h-[200px] text-lg resize-none border-2 border-primary/20 focus:border-secondary transition-colors"
+                placeholder={isRecording ? "جارٍ التسجيل... تحدث الآن..." : "صف حلمك بالتفصيل... أو اضغط على زر التسجيل الصوتي"}
+                className={`min-h-[200px] text-lg resize-none border-2 ${isRecording ? 'border-destructive/50 bg-destructive/5' : 'border-primary/20'} focus:border-secondary transition-colors`}
                 disabled={isLoading}
                 dir="rtl"
               />
+              {isRecording && (
+                <div className="flex items-center gap-2 text-sm text-destructive animate-pulse">
+                  <div className="w-2 h-2 rounded-full bg-destructive"></div>
+                  <span>جارٍ التسجيل...</span>
+                </div>
+              )}
             </div>
             
             <Button
