@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Moon, Sparkles, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { admobService } from "@/services/admob";
+import { supabase } from "@/integrations/supabase/client";
 
 export const DreamInterpretation = () => {
   const [dream, setDream] = useState("");
@@ -59,6 +60,20 @@ export const DreamInterpretation = () => {
       const data = await response.json();
       setInterpretation(data.interpretation);
       
+      // Save dream to database if user is logged in
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error: saveError } = await supabase.from("dreams").insert({
+          user_id: user.id,
+          dream_text: dream.trim(),
+          interpretation: data.interpretation,
+        });
+
+        if (saveError) {
+          console.error("Error saving dream:", saveError);
+        }
+      }
+      
       // Show interstitial ad every 3 interpretations
       setInterpretationCount(prev => {
         const newCount = prev + 1;
@@ -70,7 +85,7 @@ export const DreamInterpretation = () => {
       
       toast({
         title: "تم التفسير بنجاح",
-        description: "تم الحصول على تفسير حلمك",
+        description: user ? "تم حفظ الحلم في سجلك" : "تم الحصول على تفسير حلمك",
       });
     } catch (error) {
       console.error('Error interpreting dream:', error);
