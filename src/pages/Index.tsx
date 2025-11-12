@@ -3,10 +3,11 @@ import { Hero } from "@/components/Hero";
 import { DreamInterpretation } from "@/components/DreamInterpretation";
 import { DreamHistory } from "@/components/DreamHistory";
 import SymbolsLibrary from "@/components/SymbolsLibrary";
+import { DreamStatistics } from "@/components/DreamStatistics";
 import { Navbar } from "@/components/Navbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { Brain, History, BookOpen } from "lucide-react";
+import { Brain, History, BookOpen, BarChart3 } from "lucide-react";
 
 const Index = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -33,8 +34,8 @@ const Index = () => {
       
       <main className="container mx-auto px-4 py-12 -mt-20 relative z-10">
         {isLoggedIn ? (
-          <Tabs defaultValue="interpret" className="w-full max-w-4xl mx-auto">
-            <TabsList className="grid w-full grid-cols-3 mb-8">
+          <Tabs defaultValue="interpret" className="w-full max-w-6xl mx-auto">
+            <TabsList className="grid w-full grid-cols-4 mb-8">
               <TabsTrigger value="interpret" className="gap-2">
                 <Brain className="w-4 h-4" />
                 تفسير جديد
@@ -46,6 +47,10 @@ const Index = () => {
               <TabsTrigger value="library" className="gap-2">
                 <BookOpen className="w-4 h-4" />
                 مكتبة الرموز
+              </TabsTrigger>
+              <TabsTrigger value="statistics" className="gap-2">
+                <BarChart3 className="w-4 h-4" />
+                الإحصائيات
               </TabsTrigger>
             </TabsList>
             
@@ -59,6 +64,10 @@ const Index = () => {
             
             <TabsContent value="library">
               <SymbolsLibrary />
+            </TabsContent>
+            
+            <TabsContent value="statistics">
+              <DreamStatistics />
             </TabsContent>
           </Tabs>
         ) : (
