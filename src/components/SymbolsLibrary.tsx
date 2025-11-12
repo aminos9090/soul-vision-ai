@@ -72,14 +72,16 @@ const SymbolsLibrary = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <BookOpen className="w-8 h-8 text-primary" />
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">مكتبة رموز الأحلام</h2>
-          <p className="text-sm text-muted-foreground">
-            اكتشف معاني الرموز الشائعة في الأحلام من المنظور الإسلامي
-          </p>
+      <div className="text-center space-y-3 mb-8">
+        <div className="flex items-center justify-center gap-3">
+          <BookOpen className="w-10 h-10 text-primary animate-pulse" />
+          <h2 className="text-4xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+            مكتبة رموز الأحلام الإسلامية
+          </h2>
         </div>
+        <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          اكتشف معاني الرموز الشائعة في الأحلام من المنظور الإسلامي
+        </p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4">
@@ -108,44 +110,52 @@ const SymbolsLibrary = () => {
         </Select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredSymbols.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-muted-foreground">
-            لا توجد نتائج للبحث
+          <div className="col-span-full text-center py-12">
+            <p className="text-muted-foreground text-lg">لا توجد نتائج للبحث</p>
           </div>
         ) : (
           filteredSymbols.map((symbol) => (
-            <Card key={symbol.id} className="p-5 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="text-xl font-bold text-foreground">{symbol.symbol_name}</h3>
-                <Badge variant="secondary">{symbol.category}</Badge>
+            <Card key={symbol.id} className="group hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 hover:border-primary/50 overflow-hidden">
+              <div className="p-5 space-y-4">
+                <div className="flex items-start justify-between">
+                  <h3 className="text-2xl font-bold text-foreground">{symbol.symbol_name}</h3>
+                  <Badge variant="secondary" className="shrink-0">{symbol.category}</Badge>
+                </div>
+
+                {symbol.meanings.positive.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-green-600 dark:text-green-400 flex items-center gap-2">
+                      <span className="text-xl">✓</span>
+                      المعاني الإيجابية
+                    </h4>
+                    <ul className="space-y-1.5 text-sm">
+                      {symbol.meanings.positive.map((meaning, index) => (
+                        <li key={index} className="pr-4 border-r-2 border-green-500/30 text-foreground">
+                          {meaning}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {symbol.meanings.negative.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                      <span className="text-xl">⚠</span>
+                      المعاني السلبية
+                    </h4>
+                    <ul className="space-y-1.5 text-sm">
+                      {symbol.meanings.negative.map((meaning, index) => (
+                        <li key={index} className="pr-4 border-r-2 border-amber-500/30 text-muted-foreground">
+                          {meaning}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-
-              {symbol.meanings.positive.length > 0 && (
-                <div className="mb-3">
-                  <h4 className="text-sm font-semibold text-primary mb-2">✨ المعاني الإيجابية:</h4>
-                  <ul className="space-y-1">
-                    {symbol.meanings.positive.map((meaning, index) => (
-                      <li key={index} className="text-sm text-foreground pr-4 relative before:content-['•'] before:absolute before:right-0">
-                        {meaning}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {symbol.meanings.negative.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-destructive mb-2">⚠️ المعاني السلبية:</h4>
-                  <ul className="space-y-1">
-                    {symbol.meanings.negative.map((meaning, index) => (
-                      <li key={index} className="text-sm text-muted-foreground pr-4 relative before:content-['•'] before:absolute before:right-0">
-                        {meaning}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </Card>
           ))
         )}
