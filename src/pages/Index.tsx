@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { Hero } from "@/components/Hero";
 import { DreamInterpretation } from "@/components/DreamInterpretation";
 import { DreamHistory } from "@/components/DreamHistory";
+import SymbolsLibrary from "@/components/SymbolsLibrary";
 import { Navbar } from "@/components/Navbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { Brain, History } from "lucide-react";
+import { Brain, History, BookOpen } from "lucide-react";
 
 const Index = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -33,7 +34,7 @@ const Index = () => {
       <main className="container mx-auto px-4 py-12 -mt-20 relative z-10">
         {isLoggedIn ? (
           <Tabs defaultValue="interpret" className="w-full max-w-4xl mx-auto">
-            <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsList className="grid w-full grid-cols-3 mb-8">
               <TabsTrigger value="interpret" className="gap-2">
                 <Brain className="w-4 h-4" />
                 تفسير جديد
@@ -41,6 +42,10 @@ const Index = () => {
               <TabsTrigger value="history" className="gap-2">
                 <History className="w-4 h-4" />
                 سجل الأحلام
+              </TabsTrigger>
+              <TabsTrigger value="library" className="gap-2">
+                <BookOpen className="w-4 h-4" />
+                مكتبة الرموز
               </TabsTrigger>
             </TabsList>
             
@@ -50,6 +55,10 @@ const Index = () => {
             
             <TabsContent value="history">
               <DreamHistory />
+            </TabsContent>
+            
+            <TabsContent value="library">
+              <SymbolsLibrary />
             </TabsContent>
           </Tabs>
         ) : (

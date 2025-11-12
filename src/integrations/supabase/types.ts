@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      dream_symbols: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          meanings: Json
+          symbol_name: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          meanings: Json
+          symbol_name: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          meanings?: Json
+          symbol_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       dreams: {
         Row: {
           created_at: string
