@@ -5,9 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Star, StarOff, Trash2, Calendar, Loader2 } from "lucide-react";
+import { Search, Star, StarOff, Trash2, Calendar, Loader2, Filter, X, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 interface Dream {
   id: string;
@@ -23,15 +27,21 @@ export const DreamHistory = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [selectedSymbol, setSelectedSymbol] = useState<string>("");
+  const [symbols, setSymbols] = useState<Array<{ id: string; symbol_name: string }>>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchDreams();
+    fetchSymbols();
   }, []);
 
   useEffect(() => {
     filterDreams();
-  }, [searchQuery, dreams, activeTab]);
+  }, [searchQuery, dreams, activeTab, dateFrom, dateTo, selectedSymbol]);
 
   const fetchDreams = async () => {
     try {
@@ -53,6 +63,20 @@ export const DreamHistory = () => {
     }
   };
 
+  const fetchSymbols = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("dream_symbols")
+        .select("id, symbol_name")
+        .order("symbol_name");
+
+      if (error) throw error;
+      setSymbols(data || []);
+    } catch (error: any) {
+      console.error("Error fetching symbols:", error);
+    }
+  };
+
   const filterDreams = () => {
     let filtered = dreams;
 
@@ -70,8 +94,40 @@ export const DreamHistory = () => {
       );
     }
 
+    // Filter by date range
+    if (dateFrom) {
+      filtered = filtered.filter(
+        (dream) => new Date(dream.created_at) >= dateFrom
+      );
+    }
+    if (dateTo) {
+      const endOfDay = new Date(dateTo);
+      endOfDay.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(
+        (dream) => new Date(dream.created_at) <= endOfDay
+      );
+    }
+
+    // Filter by symbol
+    if (selectedSymbol) {
+      filtered = filtered.filter(
+        (dream) =>
+          dream.dream_text.toLowerCase().includes(selectedSymbol.toLowerCase()) ||
+          dream.interpretation.toLowerCase().includes(selectedSymbol.toLowerCase())
+      );
+    }
+
     setFilteredDreams(filtered);
   };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setSelectedSymbol("");
+  };
+
+  const hasActiveFilters = searchQuery || dateFrom || dateTo || selectedSymbol;
 
   const toggleFavorite = async (dream: Dream) => {
     try {
@@ -137,16 +193,150 @@ export const DreamHistory = () => {
       <Card className="border-2 border-primary/20">
         <CardContent className="pt-6">
           <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute right-3 top-3 h-5 w-5 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="ابحث في أحلامك..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pr-10"
-                dir="rtl"
-              />
+            {/* Search Bar */}
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute right-3 top-3 h-5 w-5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="ابحث في أحلامك..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pr-10"
+                  dir="rtl"
+                />
+              </div>
+
+              {/* Advanced Filters Toggle */}
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="gap-2"
+                >
+                  <Filter className="w-4 h-4" />
+                  بحث متقدم
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
+                </Button>
+                
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="gap-2 text-destructive hover:text-destructive"
+                  >
+                    <X className="w-4 h-4" />
+                    مسح الفلاتر
+                  </Button>
+                )}
+              </div>
+
+              {/* Advanced Filters */}
+              {showAdvancedFilters && (
+                <div className="p-4 rounded-lg border border-primary/20 bg-muted/30 space-y-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Date From */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" dir="rtl">من تاريخ</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-right font-normal"
+                          >
+                            <Calendar className="ml-2 h-4 w-4" />
+                            {dateFrom ? format(dateFrom, "PPP", { locale: ar }) : "اختر التاريخ"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={dateFrom}
+                            onSelect={setDateFrom}
+                            locale={ar}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {/* Date To */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" dir="rtl">إلى تاريخ</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-right font-normal"
+                          >
+                            <Calendar className="ml-2 h-4 w-4" />
+                            {dateTo ? format(dateTo, "PPP", { locale: ar }) : "اختر التاريخ"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={dateTo}
+                            onSelect={setDateTo}
+                            locale={ar}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+
+                  {/* Symbol Filter */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" dir="rtl">البحث حسب الرمز</label>
+                    <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
+                      <SelectTrigger className="w-full" dir="rtl">
+                        <SelectValue placeholder="اختر رمزاً من الأحلام" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value=" ">الكل</SelectItem>
+                        {symbols.map((symbol) => (
+                          <SelectItem key={symbol.id} value={symbol.symbol_name}>
+                            {symbol.symbol_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Active Filters Display */}
+                  {hasActiveFilters && (
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+                      {searchQuery && (
+                        <Badge variant="secondary" className="gap-1">
+                          بحث: {searchQuery}
+                          <X className="w-3 h-3 cursor-pointer" onClick={() => setSearchQuery("")} />
+                        </Badge>
+                      )}
+                      {dateFrom && (
+                        <Badge variant="secondary" className="gap-1">
+                          من: {format(dateFrom, "PP", { locale: ar })}
+                          <X className="w-3 h-3 cursor-pointer" onClick={() => setDateFrom(undefined)} />
+                        </Badge>
+                      )}
+                      {dateTo && (
+                        <Badge variant="secondary" className="gap-1">
+                          إلى: {format(dateTo, "PP", { locale: ar })}
+                          <X className="w-3 h-3 cursor-pointer" onClick={() => setDateTo(undefined)} />
+                        </Badge>
+                      )}
+                      {selectedSymbol && (
+                        <Badge variant="secondary" className="gap-1">
+                          رمز: {selectedSymbol}
+                          <X className="w-3 h-3 cursor-pointer" onClick={() => setSelectedSymbol("")} />
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
