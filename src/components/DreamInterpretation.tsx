@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Moon, Sparkles, Send, Mic, MicOff } from "lucide-react";
+import { Loader2, Moon, Sparkles, Send, Mic, MicOff, Share2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { admobService } from "@/services/admob";
 import { supabase } from "@/integrations/supabase/client";
+import html2canvas from "html2canvas";
+import { ShareableInterpretation } from "./ShareableInterpretation";
 
 export const DreamInterpretation = () => {
   const [dream, setDream] = useState("");
@@ -114,6 +116,70 @@ export const DreamInterpretation = () => {
           variant: "destructive",
         });
       }
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      const shareElement = document.getElementById('shareable-interpretation');
+      if (!shareElement) return;
+
+      toast({
+        title: "جارٍ إنشاء الصورة...",
+        description: "يرجى الانتظار قليلاً",
+      });
+
+      const canvas = await html2canvas(shareElement, {
+        backgroundColor: null,
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+
+        const file = new File([blob], 'dream-interpretation.png', { type: 'image/png' });
+
+        // Check if Web Share API is available
+        if (navigator.share && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              title: 'تفسير حلمي',
+              text: 'شاهد تفسير حلمي من تطبيق تفسير الأحلام AI',
+              files: [file],
+            });
+            toast({
+              title: "تمت المشاركة بنجاح",
+              description: "شكراً لمشاركة التفسير",
+            });
+          } catch (err) {
+            if ((err as Error).name !== 'AbortError') {
+              console.error('Error sharing:', err);
+            }
+          }
+        } else {
+          // Fallback: Download the image
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'dream-interpretation.png';
+          link.click();
+          URL.revokeObjectURL(url);
+          
+          toast({
+            title: "تم التحميل بنجاح",
+            description: "يمكنك الآن مشاركة الصورة من معرض الصور",
+          });
+        }
+      }, 'image/png');
+    } catch (error) {
+      console.error('Error creating shareable image:', error);
+      toast({
+        title: "حدث خطأ",
+        description: "فشل في إنشاء صورة المشاركة",
+        variant: "destructive",
+      });
     }
   };
 
@@ -272,31 +338,55 @@ export const DreamInterpretation = () => {
 
       {/* Interpretation Display */}
       {interpretation && (
-        <Card className="border-2 border-accent/30 shadow-2xl backdrop-blur-sm bg-card/95 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-accent/10">
-                  <Sparkles className="w-6 h-6 text-accent" />
+        <>
+          <Card className="border-2 border-accent/30 shadow-2xl backdrop-blur-sm bg-card/95 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-accent/10">
+                      <Sparkles className="w-6 h-6 text-accent" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-gradient">التفسير</h3>
+                  </div>
+                  
+                  <Button
+                    onClick={handleShare}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-accent/30 hover:bg-accent/10"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    مشاركة
+                  </Button>
                 </div>
-                <h3 className="text-2xl font-bold text-gradient">التفسير</h3>
+                
+                <div className="p-6 rounded-lg bg-muted/50 border border-accent/20">
+                  <p className="text-lg leading-relaxed text-foreground whitespace-pre-wrap" dir="rtl">
+                    {interpretation}
+                  </p>
+                </div>
+                
+                <div className="pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground text-center" dir="rtl">
+                    ملاحظة: هذا التفسير يعتمد على الذكاء الاصطناعي وهو للإرشاد فقط. 
+                    يُنصح بالرجوع إلى أهل العلم للتفسيرات الدقيقة.
+                  </p>
+                </div>
               </div>
-              
-              <div className="p-6 rounded-lg bg-muted/50 border border-accent/20">
-                <p className="text-lg leading-relaxed text-foreground whitespace-pre-wrap" dir="rtl">
-                  {interpretation}
-                </p>
-              </div>
-              
-              <div className="pt-4 border-t border-border">
-                <p className="text-sm text-muted-foreground text-center" dir="rtl">
-                  ملاحظة: هذا التفسير يعتمد على الذكاء الاصطناعي وهو للإرشاد فقط. 
-                  يُنصح بالرجوع إلى أهل العلم للتفسيرات الدقيقة.
-                </p>
-              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Hidden Shareable Component */}
+          <div className="fixed -left-[9999px] -top-[9999px]">
+            <div id="shareable-interpretation">
+              <ShareableInterpretation 
+                dreamText={dream}
+                interpretation={interpretation}
+              />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </>
       )}
     </div>
   );
