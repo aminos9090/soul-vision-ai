@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Star, StarOff, Trash2, Calendar, Loader2, Filter, X, ChevronDown } from "lucide-react";
+import { Search, Star, StarOff, Trash2, Calendar, Loader2, Filter, X, ChevronDown, FileDown, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import jsPDF from "jspdf";
 
 interface Dream {
   id: string;
@@ -180,6 +181,139 @@ export const DreamHistory = () => {
     }
   };
 
+  const exportToPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Load Arabic font support - using a system font
+      doc.setFont("helvetica");
+      
+      let yPosition = 20;
+      const pageHeight = doc.internal.pageSize.height;
+      const lineHeight = 7;
+      const margin = 20;
+      const maxWidth = 170;
+
+      // Title
+      doc.setFontSize(18);
+      doc.text("Dream Interpretations Archive", 105, yPosition, { align: "center" });
+      yPosition += 15;
+
+      const dreamsToExport = filteredDreams.length > 0 ? filteredDreams : dreams;
+
+      dreamsToExport.forEach((dream, index) => {
+        if (yPosition > pageHeight - 40) {
+          doc.addPage();
+          yPosition = 20;
+        }
+
+        // Dream number and date
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        const dreamDate = format(new Date(dream.created_at), "yyyy/MM/dd - HH:mm", { locale: ar });
+        doc.text(`Dream #${index + 1} - ${dreamDate}`, margin, yPosition);
+        yPosition += lineHeight + 2;
+
+        // Dream text
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.text("Dream:", margin, yPosition);
+        yPosition += lineHeight;
+        
+        const dreamLines = doc.splitTextToSize(dream.dream_text, maxWidth);
+        dreamLines.forEach((line: string) => {
+          if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          doc.text(line, margin, yPosition);
+          yPosition += lineHeight;
+        });
+
+        yPosition += 3;
+
+        // Interpretation
+        doc.text("Interpretation:", margin, yPosition);
+        yPosition += lineHeight;
+        
+        const interpretationLines = doc.splitTextToSize(dream.interpretation, maxWidth);
+        interpretationLines.forEach((line: string) => {
+          if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          doc.text(line, margin, yPosition);
+          yPosition += lineHeight;
+        });
+
+        // Separator
+        yPosition += 5;
+        doc.line(margin, yPosition, 190, yPosition);
+        yPosition += 10;
+      });
+
+      doc.save(`dreams_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      
+      toast({
+        title: "تم التصدير بنجاح",
+        description: `تم تصدير ${dreamsToExport.length} حلم إلى ملف PDF`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "خطأ في التصدير",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const exportToCSV = () => {
+    try {
+      const dreamsToExport = filteredDreams.length > 0 ? filteredDreams : dreams;
+      
+      // Create CSV header
+      const headers = ["التاريخ", "الحلم", "التفسير", "مفضل"];
+      
+      // Create CSV rows
+      const rows = dreamsToExport.map(dream => [
+        format(new Date(dream.created_at), "yyyy/MM/dd HH:mm", { locale: ar }),
+        `"${dream.dream_text.replace(/"/g, '""')}"`,
+        `"${dream.interpretation.replace(/"/g, '""')}"`,
+        dream.is_favorite ? "نعم" : "لا"
+      ]);
+      
+      // Combine headers and rows
+      const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.join(","))
+      ].join("\n");
+      
+      // Add BOM for proper UTF-8 encoding in Excel
+      const BOM = "\uFEFF";
+      const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+      
+      // Create download link
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `dreams_${format(new Date(), "yyyy-MM-dd")}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "تم التصدير بنجاح",
+        description: `تم تصدير ${dreamsToExport.length} حلم إلى ملف CSV`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "خطأ في التصدير",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -207,30 +341,56 @@ export const DreamHistory = () => {
                 />
               </div>
 
-              {/* Advanced Filters Toggle */}
-              <div className="flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className="gap-2"
-                >
-                  <Filter className="w-4 h-4" />
-                  بحث متقدم
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
-                </Button>
-                
-                {hasActiveFilters && (
+              {/* Advanced Filters Toggle and Export Buttons */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    onClick={clearFilters}
-                    className="gap-2 text-destructive hover:text-destructive"
+                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                    className="gap-2"
                   >
-                    <X className="w-4 h-4" />
-                    مسح الفلاتر
+                    <Filter className="w-4 h-4" />
+                    بحث متقدم
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
                   </Button>
-                )}
+                  
+                  {hasActiveFilters && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="gap-2 text-destructive hover:text-destructive"
+                    >
+                      <X className="w-4 h-4" />
+                      مسح الفلاتر
+                    </Button>
+                  )}
+                </div>
+
+                {/* Export Buttons */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportToCSV}
+                    className="gap-2"
+                    disabled={dreams.length === 0}
+                  >
+                    <FileText className="w-4 h-4" />
+                    تصدير CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportToPDF}
+                    className="gap-2"
+                    disabled={dreams.length === 0}
+                  >
+                    <FileDown className="w-4 h-4" />
+                    تصدير PDF
+                  </Button>
+                </div>
               </div>
 
               {/* Advanced Filters */}
