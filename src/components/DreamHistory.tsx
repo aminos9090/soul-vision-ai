@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Star, StarOff, Trash2, Calendar, Loader2, Filter, X, ChevronDown, FileDown, FileText } from "lucide-react";
+import { Search, Star, StarOff, Trash2, Calendar, Loader2, Filter, X, ChevronDown, FileDown, FileText, Edit3 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import jsPDF from "jspdf";
 
 interface Dream {
@@ -33,7 +34,20 @@ export const DreamHistory = () => {
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedSymbol, setSelectedSymbol] = useState<string>("");
   const [symbols, setSymbols] = useState<Array<{ id: string; symbol_name: string }>>([]);
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const { toast } = useToast();
+
+  // Load notes from localStorage on mount
+  useEffect(() => {
+    const savedNotes = localStorage.getItem("dreamNotes");
+    if (savedNotes) {
+      try {
+        setNotes(JSON.parse(savedNotes));
+      } catch (error) {
+        console.error("Error loading notes:", error);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchDreams();
@@ -167,6 +181,12 @@ export const DreamHistory = () => {
       if (error) throw error;
 
       setDreams(dreams.filter((d) => d.id !== id));
+      
+      // Remove notes for deleted dream
+      const updatedNotes = { ...notes };
+      delete updatedNotes[id];
+      setNotes(updatedNotes);
+      localStorage.setItem("dreamNotes", JSON.stringify(updatedNotes));
 
       toast({
         title: "تم الحذف",
@@ -179,6 +199,12 @@ export const DreamHistory = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const updateNote = (dreamId: string, note: string) => {
+    const updatedNotes = { ...notes, [dreamId]: note };
+    setNotes(updatedNotes);
+    localStorage.setItem("dreamNotes", JSON.stringify(updatedNotes));
   };
 
   const exportToPDF = () => {
@@ -246,6 +272,25 @@ export const DreamHistory = () => {
           yPosition += lineHeight;
         });
 
+        yPosition += 3;
+
+        // Notes
+        const dreamNote = notes[dream.id];
+        if (dreamNote) {
+          doc.text("Notes:", margin, yPosition);
+          yPosition += lineHeight;
+          
+          const noteLines = doc.splitTextToSize(dreamNote, maxWidth);
+          noteLines.forEach((line: string) => {
+            if (yPosition > pageHeight - 30) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            doc.text(line, margin, yPosition);
+            yPosition += lineHeight;
+          });
+        }
+
         // Separator
         yPosition += 5;
         doc.line(margin, yPosition, 190, yPosition);
@@ -272,13 +317,14 @@ export const DreamHistory = () => {
       const dreamsToExport = filteredDreams.length > 0 ? filteredDreams : dreams;
       
       // Create CSV header
-      const headers = ["التاريخ", "الحلم", "التفسير", "مفضل"];
+      const headers = ["التاريخ", "الحلم", "التفسير", "الملاحظات", "مفضل"];
       
       // Create CSV rows
       const rows = dreamsToExport.map(dream => [
         format(new Date(dream.created_at), "yyyy/MM/dd HH:mm", { locale: ar }),
         `"${dream.dream_text.replace(/"/g, '""')}"`,
         `"${dream.interpretation.replace(/"/g, '""')}"`,
+        `"${(notes[dream.id] || "").replace(/"/g, '""')}"`,
         dream.is_favorite ? "نعم" : "لا"
       ]);
       
@@ -521,6 +567,8 @@ export const DreamHistory = () => {
                       dream={dream}
                       onToggleFavorite={toggleFavorite}
                       onDelete={deleteDream}
+                      note={notes[dream.id] || ""}
+                      onUpdateNote={updateNote}
                     />
                   ))
                 )}
@@ -538,6 +586,8 @@ export const DreamHistory = () => {
                       dream={dream}
                       onToggleFavorite={toggleFavorite}
                       onDelete={deleteDream}
+                      note={notes[dream.id] || ""}
+                      onUpdateNote={updateNote}
                     />
                   ))
                 )}
@@ -554,10 +604,18 @@ interface DreamCardProps {
   dream: Dream;
   onToggleFavorite: (dream: Dream) => void;
   onDelete: (id: string) => void;
+  note: string;
+  onUpdateNote: (dreamId: string, note: string) => void;
 }
 
-const DreamCard = ({ dream, onToggleFavorite, onDelete }: DreamCardProps) => {
+const DreamCard = ({ dream, onToggleFavorite, onDelete, note, onUpdateNote }: DreamCardProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [localNote, setLocalNote] = useState(note);
+
+  useEffect(() => {
+    setLocalNote(note);
+  }, [note]);
 
   return (
     <Card className="border border-border/50 hover:border-primary/30 transition-colors">
@@ -627,6 +685,66 @@ const DreamCard = ({ dream, onToggleFavorite, onDelete }: DreamCardProps) => {
               >
                 {dream.interpretation}
               </p>
+            </div>
+
+            {/* Notes Section */}
+            <div className="border-t border-border pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-sm text-muted-foreground flex items-center gap-2" dir="rtl">
+                  <Edit3 className="w-4 h-4" />
+                  ملاحظاتي الشخصية:
+                </h4>
+                {!isEditingNote && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingNote(true)}
+                    className="h-8 text-xs"
+                  >
+                    {localNote ? "تعديل" : "إضافة ملاحظة"}
+                  </Button>
+                )}
+              </div>
+              
+              {isEditingNote ? (
+                <div className="space-y-2">
+                  <Input
+                    value={localNote}
+                    onChange={(e) => setLocalNote(e.target.value)}
+                    placeholder="اكتب ملاحظاتك الشخصية هنا..."
+                    className="w-full"
+                    dir="rtl"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        onUpdateNote(dream.id, localNote);
+                        setIsEditingNote(false);
+                      }}
+                    >
+                      حفظ
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setLocalNote(note);
+                        setIsEditingNote(false);
+                      }}
+                    >
+                      إلغاء
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p
+                  className="text-foreground/80 text-sm leading-relaxed"
+                  dir="rtl"
+                >
+                  {localNote || "لا توجد ملاحظات"}
+                </p>
+              )}
             </div>
           </div>
 
