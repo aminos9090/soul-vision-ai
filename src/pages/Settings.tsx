@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTheme } from "next-themes";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -7,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Settings as SettingsIcon, Bell, Globe, Shield, Save, Database, Download, Upload } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Globe, Shield, Save, Database, Download, Upload, Moon, Sun, Monitor } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UserSettings {
@@ -42,6 +43,7 @@ export default function Settings() {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     const savedSettings = localStorage.getItem("userSettings");
@@ -226,6 +228,46 @@ export default function Settings() {
           </div>
 
           <div className="space-y-6">
+            {/* Theme Settings */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Sun className="w-5 h-5 text-primary" />
+                  <CardTitle>المظهر</CardTitle>
+                </div>
+                <CardDescription>اختر مظهر التطبيق المفضل لديك</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup
+                  value={theme}
+                  onValueChange={setTheme}
+                  className="space-y-3"
+                >
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <RadioGroupItem value="light" id="light" />
+                    <Label htmlFor="light" className="cursor-pointer flex items-center gap-2">
+                      <Sun className="w-4 h-4" />
+                      فاتح
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <RadioGroupItem value="dark" id="dark" />
+                    <Label htmlFor="dark" className="cursor-pointer flex items-center gap-2">
+                      <Moon className="w-4 h-4" />
+                      داكن
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <RadioGroupItem value="system" id="system" />
+                    <Label htmlFor="system" className="cursor-pointer flex items-center gap-2">
+                      <Monitor className="w-4 h-4" />
+                      تلقائي (حسب النظام)
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </CardContent>
+            </Card>
+
             {/* Language Settings */}
             <Card>
               <CardHeader>
