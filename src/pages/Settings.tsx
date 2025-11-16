@@ -7,7 +7,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Settings as SettingsIcon, Bell, Globe, Shield, Save } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Globe, Shield, Save, Database, Download, Upload } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UserSettings {
   language: "ar" | "en" | "fr";
@@ -38,6 +39,8 @@ const defaultSettings: UserSettings = {
 export default function Settings() {
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -63,6 +66,147 @@ export default function Settings() {
   const updateSettings = (updates: Partial<UserSettings>) => {
     setSettings((prev) => ({ ...prev, ...updates }));
     setHasChanges(true);
+  };
+
+  const handleBackup = async () => {
+    try {
+      setIsBackingUp(true);
+      
+      // Get user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "خطأ",
+          description: "يجب تسجيل الدخول أولاً",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Get dreams from database
+      const { data: dreams, error } = await supabase
+        .from("dreams")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      // Get notes from localStorage
+      const notesData = localStorage.getItem("dreamNotes");
+      const notes = notesData ? JSON.parse(notesData) : {};
+
+      // Get settings from localStorage
+      const settingsData = localStorage.getItem("userSettings");
+      const userSettings = settingsData ? JSON.parse(settingsData) : defaultSettings;
+
+      // Create backup object
+      const backup = {
+        version: "1.0",
+        timestamp: new Date().toISOString(),
+        data: {
+          dreams: dreams || [],
+          notes,
+          settings: userSettings,
+        },
+      };
+
+      // Download as JSON file
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dream-backup-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "تم إنشاء النسخة الاحتياطية",
+        description: "تم تنزيل ملف النسخة الاحتياطية بنجاح",
+      });
+    } catch (error) {
+      console.error("Backup error:", error);
+      toast({
+        title: "خطأ",
+        description: "فشل إنشاء النسخة الاحتياطية",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsRestoring(true);
+
+      // Read file
+      const text = await file.text();
+      const backup = JSON.parse(text);
+
+      // Validate backup structure
+      if (!backup.version || !backup.data) {
+        throw new Error("Invalid backup file");
+      }
+
+      // Get user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "خطأ",
+          description: "يجب تسجيل الدخول أولاً",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Restore dreams to database
+      if (backup.data.dreams && backup.data.dreams.length > 0) {
+        const dreamsToInsert = backup.data.dreams.map((dream: any) => ({
+          ...dream,
+          user_id: user.id, // Ensure current user ID
+          id: undefined, // Let database generate new IDs
+        }));
+
+        const { error } = await supabase
+          .from("dreams")
+          .insert(dreamsToInsert);
+
+        if (error) throw error;
+      }
+
+      // Restore notes to localStorage
+      if (backup.data.notes) {
+        localStorage.setItem("dreamNotes", JSON.stringify(backup.data.notes));
+      }
+
+      // Restore settings to localStorage
+      if (backup.data.settings) {
+        localStorage.setItem("userSettings", JSON.stringify(backup.data.settings));
+        setSettings(backup.data.settings);
+      }
+
+      toast({
+        title: "تم استعادة البيانات",
+        description: "تم استعادة البيانات بنجاح. قد تحتاج لتحديث الصفحة لرؤية التغييرات.",
+      });
+
+      // Reset file input
+      event.target.value = "";
+    } catch (error) {
+      console.error("Restore error:", error);
+      toast({
+        title: "خطأ",
+        description: "فشل استعادة البيانات. تأكد من أن الملف صحيح.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   return (
@@ -264,6 +408,79 @@ export default function Settings() {
                       })
                     }
                   />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Backup and Restore */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Database className="w-5 h-5 text-primary" />
+                  <CardTitle>النسخ الاحتياطي والاستعادة</CardTitle>
+                </div>
+                <CardDescription>
+                  قم بعمل نسخة احتياطية من أحلامك وملاحظاتك أو استعادتها
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Download className="w-5 h-5 text-primary mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="font-medium text-foreground mb-1">النسخ الاحتياطي</h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        قم بتنزيل جميع أحلامك وملاحظاتك وإعداداتك كملف JSON
+                      </p>
+                      <Button
+                        onClick={handleBackup}
+                        disabled={isBackingUp}
+                        variant="outline"
+                        className="gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        {isBackingUp ? "جاري الإنشاء..." : "إنشاء نسخة احتياطية"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Upload className="w-5 h-5 text-primary mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="font-medium text-foreground mb-1">استعادة البيانات</h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        استعد بياناتك من ملف النسخة الاحتياطية
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => document.getElementById("restore-file")?.click()}
+                          disabled={isRestoring}
+                          variant="outline"
+                          className="gap-2"
+                        >
+                          <Upload className="w-4 h-4" />
+                          {isRestoring ? "جاري الاستعادة..." : "اختر ملف للاستعادة"}
+                        </Button>
+                        <input
+                          id="restore-file"
+                          type="file"
+                          accept=".json"
+                          onChange={handleRestore}
+                          className="hidden"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-accent/10 border border-accent/20 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    ⚠️ <strong>تنبيه:</strong> عند استعادة البيانات، سيتم إضافة الأحلام الموجودة في النسخة الاحتياطية إلى أحلامك الحالية. لن يتم حذف أي بيانات موجودة.
+                  </p>
                 </div>
               </CardContent>
             </Card>
