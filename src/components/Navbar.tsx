@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LogOut, User, Moon, BookOpen, Home } from "lucide-react";
+import { LogOut, User, Moon, BookOpen, Home, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { NavLink } from "./NavLink";
@@ -74,6 +74,15 @@ export const Navbar = () => {
               >
                 الأسئلة الشائعة
               </NavLink>
+              {user && (
+                <NavLink 
+                  to="/settings" 
+                  icon={Settings}
+                  isActive={location.pathname === "/settings"}
+                >
+                  الإعدادات
+                </NavLink>
+              )}
             </div>
           </div>
 
